@@ -2,9 +2,10 @@ import { Request, Response } from "express";
 import { QueryConfig, QueryResult } from "pg";
 import format from "pg-format";
 import { client } from "../database";
+import { IProjectRequest, ITechRequest, ProjectResult, TechResult } from "../interfaces/projects.interfaces";
 
 const registerNewProject = async (req: Request, res: Response): Promise<Response> => {
-  const newProjectReqBody = req.body;
+  const newProjectReqBody: IProjectRequest = req.body;
 
   const queryString: string = format(
     `
@@ -17,7 +18,7 @@ const registerNewProject = async (req: Request, res: Response): Promise<Response
     Object.values(newProjectReqBody)
   );
 
-  const queryResult = await client.query(queryString);
+  const queryResult: ProjectResult = await client.query(queryString);
 
   return res.status(201).json(queryResult.rows[0]);
 };
@@ -36,7 +37,7 @@ const getAllProjects = async (req: Request, res: Response): Promise<Response> =>
   GROUP BY pro.id;
   `;
 
-  const queryResult: QueryResult = await client.query(queryString);
+  const queryResult: ProjectResult = await client.query(queryString);
 
   return res.status(200).json(queryResult.rows);
 };
@@ -64,16 +65,16 @@ const getProject = async (req: Request, res: Response): Promise<Response> => {
     values: [projectId],
   };
 
-  const queryResult = await client.query(queryConfig);
+  const queryResult: ProjectResult = await client.query(queryConfig);
 
   return res.status(200).json(queryResult.rows[0]);
 };
 
 const registerNewTech = async (req: Request, res: Response): Promise<Response> => {
   const projectId: number = parseInt(req.params.id);
-  const newTech = req.body.name;
+  const newTech: ITechRequest = req.body;
 
-  if (!newTech) {
+  if (!newTech.name) {
     return res.status(400).json({
       message: `Erro: 'name' is required`,
     });
@@ -89,10 +90,10 @@ const registerNewTech = async (req: Request, res: Response): Promise<Response> =
   `;
   const queryConfigCheck: QueryConfig = {
     text: queryString,
-    values: [newTech],
+    values: [newTech.name],
   };
 
-  const queryResultCheck = await client.query(queryConfigCheck);
+  const queryResultCheck: QueryResult = await client.query(queryConfigCheck);
 
   if (queryResultCheck.rowCount === 0) {
     return res.status(400).json({
@@ -114,14 +115,14 @@ const registerNewTech = async (req: Request, res: Response): Promise<Response> =
     values: [newDate, projectId, queryResultCheck.rows[0].id],
   };
 
-  const queryResult = await client.query(queryConfig);
+  const queryResult: TechResult = await client.query(queryConfig);
 
   return res.status(201).json(queryResult.rows[0]);
 };
 
 const editProject = async (req: Request, res: Response): Promise<Response> => {
   const projectId: number = parseInt(req.params.id);
-  const projectInfoBody = req.body;
+  const projectInfoBody: IProjectRequest = req.body;
 
   const queryString = format(
     `
@@ -141,13 +142,13 @@ const editProject = async (req: Request, res: Response): Promise<Response> => {
     values: [projectId],
   };
 
-  const queryResult = await client.query(queryConfig);
+  const queryResult: ProjectResult = await client.query(queryConfig);
 
   return res.status(200).json(queryResult.rows[0]);
 };
 
 const deleteProject = async (req: Request, res: Response): Promise<Response> => {
-  const projectId = parseInt(req.params.id);
+  const projectId: number = parseInt(req.params.id);
 
   const queryString: string = `
     DELETE FROM
@@ -167,8 +168,8 @@ const deleteProject = async (req: Request, res: Response): Promise<Response> => 
 };
 
 const deleteTechnologyFromProject = async (req: Request, res: Response): Promise<Response> => {
-  const projectId = parseInt(req.params.id);
-  const techName = req.params.name.toUpperCase();
+  const projectId: number = parseInt(req.params.id);
+  const techName: string = req.params.name.toUpperCase();
 
   let queryString: string = `
     SELECT
@@ -179,26 +180,26 @@ const deleteTechnologyFromProject = async (req: Request, res: Response): Promise
       name = $1
   `;
 
-  const queryConfigTechName:QueryConfig = {
+  const queryConfigTechName: QueryConfig = {
     text: queryString,
-    values: [techName]
-  }
+    values: [techName],
+  };
 
-  const queryConfigTechNameResult = await client.query(queryConfigTechName);
+  const queryConfigTechNameResult: QueryResult = await client.query(queryConfigTechName);
 
   queryString = `
     DELETE FROM
       projects_technologies
     WHERE
       "projectId" = $1 AND "technologyId" = $2;
-  `
+  `;
 
   const queryConfig: QueryConfig = {
-    text:queryString,
-    values:[projectId, queryConfigTechNameResult.rows[0].id]
-  }
+    text: queryString,
+    values: [projectId, queryConfigTechNameResult.rows[0].id],
+  };
 
-  await client.query(queryConfig)
+  await client.query(queryConfig);
 
   return res.status(200).json();
 };

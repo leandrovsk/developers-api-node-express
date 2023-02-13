@@ -2,26 +2,28 @@ import express, { Application } from "express";
 import { startDatabase } from "./database";
 import { deleteDeveloper, editDeveloper, editDeveloperInfo, getAllDevelopers, getDeveloper, listAllDevProjects, registerNewDeveloper, registerNewDevInfo } from "./logics/developers.logic";
 import { deleteProject, deleteTechnologyFromProject, editProject, getAllProjects, getProject, registerNewProject, registerNewTech } from "./logics/projects.logic";
+import { ensureDeveloperExists, validateDeveloperBodyMiddleware, validateInfoBodyMiddleware } from "./middleswares/developers.middlewares";
+import { ensureProjectExists, validateProjectBodyMiddleware, validateTechBodyMiddleware } from "./middleswares/projects.middlewares";
 
 const app: Application = express();
 app.use(express.json());
 
-app.post("/developers", registerNewDeveloper);
-app.get("/developers/:id", getDeveloper);
-app.get("/developers/:id/projects", listAllDevProjects);
+app.post("/developers", validateDeveloperBodyMiddleware, registerNewDeveloper);
+app.get("/developers/:id", ensureDeveloperExists, getDeveloper);
+app.get("/developers/:id/projects", ensureDeveloperExists, listAllDevProjects);
 app.get("/developers", getAllDevelopers);
-app.patch("/developers/:id", editDeveloper);
-app.delete("/developers/:id", deleteDeveloper);
-app.post("/developers/:id/infos", registerNewDevInfo);
-app.patch("/developers/:id/infos", editDeveloperInfo);
+app.patch("/developers/:id", ensureDeveloperExists, validateDeveloperBodyMiddleware, editDeveloper);
+app.delete("/developers/:id", ensureDeveloperExists, deleteDeveloper);
+app.post("/developers/:id/infos", validateInfoBodyMiddleware, ensureDeveloperExists, registerNewDevInfo);
+app.patch("/developers/:id/infos", validateInfoBodyMiddleware, ensureDeveloperExists, editDeveloperInfo);
 
-app.post("/projects", registerNewProject);
-app.get("/projects/:id", getProject);
+app.post("/projects", validateProjectBodyMiddleware, registerNewProject);
+app.get("/projects/:id", ensureProjectExists, getProject);
 app.get("/projects", getAllProjects);
-app.patch("/projects/:id", editProject);
-app.delete("/projects/:id", deleteProject);
-app.post("/projects/:id/technologies", registerNewTech);
-app.delete("/projects/:id/technologies/:name", deleteTechnologyFromProject);
+app.patch("/projects/:id", ensureProjectExists, validateProjectBodyMiddleware, editProject);
+app.delete("/projects/:id", ensureProjectExists, deleteProject);
+app.post("/projects/:id/technologies", ensureProjectExists, validateTechBodyMiddleware, registerNewTech);
+app.delete("/projects/:id/technologies/:name", ensureProjectExists, deleteTechnologyFromProject);
 
 app.listen(3000, async () => {
   await startDatabase();

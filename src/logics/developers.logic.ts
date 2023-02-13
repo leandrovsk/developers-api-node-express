@@ -2,9 +2,10 @@ import { Request, Response } from "express";
 import { QueryConfig, QueryResult } from "pg";
 import format from "pg-format";
 import { client } from "../database";
+import { DeveloperProjectsResult, DeveloperResult, DevInfoResult, IDeveloperRequest, IDevInfoRequest } from "../interfaces/developers.interfaces";
 
 const registerNewDeveloper = async (req: Request, res: Response): Promise<Response> => {
-  const developerReqBody = req.body;
+  const developerReqBody: IDeveloperRequest = req.body;
 
   const queryString: string = format(
     `
@@ -17,7 +18,7 @@ const registerNewDeveloper = async (req: Request, res: Response): Promise<Respon
     Object.values(developerReqBody)
   );
 
-  const queryResult: QueryResult = await client.query(queryString);
+  const queryResult: DeveloperResult = await client.query(queryString);
 
   return res.status(201).json(queryResult.rows[0]);
 };
@@ -36,7 +37,7 @@ const getAllDevelopers = async (req: Request, res: Response): Promise<Response> 
     developer_infos dinf ON de."developerInfoId" = dinf.id;
   `;
 
-  const queryResult = await client.query(queryString);
+  const queryResult: DeveloperResult = await client.query(queryString);
 
   return res.status(200).json(queryResult.rows);
 };
@@ -64,14 +65,14 @@ const getDeveloper = async (req: Request, res: Response): Promise<Response> => {
     values: [developerId],
   };
 
-  const queryResult = await client.query(queryConfig);
+  const queryResult: DeveloperResult = await client.query(queryConfig);
 
   return res.status(200).json(queryResult.rows[0]);
 };
 
 const registerNewDevInfo = async (req: Request, res: Response): Promise<Response> => {
   const devId: number = parseInt(req.params.id);
-  const newInfoReqBody = req.body;
+  const newInfoReqBody: IDevInfoRequest = req.body;
 
   let queryString: string = format(
     `
@@ -84,7 +85,7 @@ const registerNewDevInfo = async (req: Request, res: Response): Promise<Response
     Object.values(newInfoReqBody)
   );
 
-  const queryResultInfo = await client.query(queryString);
+  const queryResultInfo: DevInfoResult = await client.query(queryString);
 
   queryString = `
     UPDATE
@@ -107,7 +108,7 @@ const registerNewDevInfo = async (req: Request, res: Response): Promise<Response
 
 const editDeveloper = async (req: Request, res: Response): Promise<Response> => {
   const devId = parseInt(req.params.id);
-  const developerReqBody = req.body;
+  const developerReqBody: IDeveloperRequest = req.body;
 
   if (req.body.id) {
     return res.status(400).json({
@@ -133,7 +134,7 @@ const editDeveloper = async (req: Request, res: Response): Promise<Response> => 
     values: [devId],
   };
 
-  let queryResult = await client.query(queryConfig);
+  let queryResult: DeveloperResult = await client.query(queryConfig);
 
   delete queryResult.rows[0].developerInfoId;
 
@@ -157,7 +158,7 @@ const listAllDevProjects = async (req: Request, res: Response): Promise<Response
     values: [developerId],
   };
 
-  const queryResultDeveloper = await client.query(queryConfigDeveloper);
+  const queryResultDeveloper: DeveloperResult = await client.query(queryConfigDeveloper);
 
   queryString = `
   SELECT
@@ -185,7 +186,7 @@ const listAllDevProjects = async (req: Request, res: Response): Promise<Response
     values: [developerId],
   };
 
-  const queryResultProjects = await client.query(queryConfigProjects);
+  const queryResultProjects: DeveloperProjectsResult = await client.query(queryConfigProjects);
 
   const response = { developer: { ...queryResultDeveloper.rows[0] }, projects: queryResultProjects.rows };
 
@@ -194,7 +195,7 @@ const listAllDevProjects = async (req: Request, res: Response): Promise<Response
 
 const editDeveloperInfo = async (req: Request, res: Response): Promise<Response> => {
   const developerId: number = parseInt(req.params.id);
-  const developerInfoBody = req.body;
+  const developerInfoBody: IDevInfoRequest = req.body;
 
   let queryString: string = `
     SELECT
@@ -210,13 +211,7 @@ const editDeveloperInfo = async (req: Request, res: Response): Promise<Response>
     values: [developerId],
   };
 
-  const queryResultDeveloper = await client.query(queryConfigDeveloper);
-
-  if (queryResultDeveloper.rowCount === 0) {
-    return res.status(400).json({
-      message: `Erro: developer not found`,
-    });
-  }
+  const queryResultDeveloper: DeveloperResult = await client.query(queryConfigDeveloper);
 
   queryString = format(
     `
@@ -236,7 +231,7 @@ const editDeveloperInfo = async (req: Request, res: Response): Promise<Response>
     values: [queryResultDeveloper.rows[0].developerInfoId],
   };
 
-  let queryResultInfo = await client.query(queryConfigInfo);
+  let queryResultInfo: QueryResult = await client.query(queryConfigInfo);
 
   delete queryResultInfo.rows[0].id;
   delete queryResultDeveloper.rows[0].developerInfoId;
@@ -250,24 +245,23 @@ const editDeveloperInfo = async (req: Request, res: Response): Promise<Response>
 };
 
 const deleteDeveloper = async (req: Request, res: Response): Promise<Response> => {
-
-  const developerId = parseInt(req.params.id)
+  const developerId: number = parseInt(req.params.id);
 
   const queryString: string = `
     DELETE FROM
       developers
     WHERE
       id = $1;
-  `
+  `;
 
   const queryConfig: QueryConfig = {
     text: queryString,
-    values:[developerId]
-  }
+    values: [developerId],
+  };
 
-  await client.query(queryConfig)
+  await client.query(queryConfig);
 
-  return res.status(200).json()
-}
+  return res.status(200).json();
+};
 
 export { registerNewDeveloper, getAllDevelopers, getDeveloper, registerNewDevInfo, editDeveloper, editDeveloperInfo, listAllDevProjects, deleteDeveloper };
