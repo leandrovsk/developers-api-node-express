@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { QueryConfig } from "pg";
 import { client } from "../database";
-import { DeveloperResult } from "../interfaces/developers.interfaces";
+import { DeveloperResult, IDeveloperRequest } from "../interfaces/developers.interfaces";
 
 const ensureDeveloperExists = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
   const developerId: number = parseInt(req.params.id);
@@ -24,7 +24,7 @@ const ensureDeveloperExists = async (req: Request, res: Response, next: NextFunc
 
   if (queryResult.rowCount === 0) {
     return res.status(404).json({
-      message: `Error: developer 'id' not found`,
+      message: "Developer not found.",
     });
   }
 
@@ -32,41 +32,70 @@ const ensureDeveloperExists = async (req: Request, res: Response, next: NextFunc
 };
 
 const validateDeveloperBodyMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
-  const developerKeys = Object.keys(req.body);
+  const developerReqBody: IDeveloperRequest = req.body;
+  const developerReqBodyKeys = Object.keys(req.body);
   const developerRequiredKeys = ["name", "email"];
 
-  let validateKeys = developerRequiredKeys.every((key) => developerKeys.includes(key));
+  const validateKeys = developerRequiredKeys.some((key) => developerReqBodyKeys.includes(key));
 
-  let checkWrongKeys = developerKeys.some((key) => !developerRequiredKeys.includes(key));
-
-  if (req.method === "PATCH") {
-    validateKeys = developerRequiredKeys.some((key) => developerKeys.includes(key));
+  if (req.method === "PATCH" && !validateKeys) {
+    return res.status(400).json({
+      message: "At least one of those keys must be send.",
+      keys: ["name", "email"],
+    });
   }
 
-  if (!validateKeys || checkWrongKeys) {
-    return res.status(400).json({
-      message: `Error: required keys are ${developerRequiredKeys}`,
-    });
+  if (req.method === "POST") {
+    if (!developerReqBody.name) {
+      return res.status(400).json({
+        message: "Missing required keys: name.",
+      });
+    }
+
+    if (!developerReqBody.email) {
+      return res.status(400).json({
+        message: "Missing required keys: email.",
+      });
+    }
   }
 
   return next();
 };
 
 const validateInfoBodyMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  const developerInfoBody = req.body;
   const developerInfoKeys = Object.keys(req.body);
   const developerInfoRequiredKeys = ["developerSince", "preferredOS"];
+  const developerRequiredOS = ["Windows", "Linux", "MacOS"];
 
-  let validateKeys = developerInfoRequiredKeys.every((key) => developerInfoKeys.includes(key));
+  const validateKeys = developerInfoRequiredKeys.some((key) => developerInfoKeys.includes(key));
 
-  let checkWrongKeys = developerInfoKeys.some((key) => !developerInfoRequiredKeys.includes(key));
-
-  if (req.method === "PATCH") {
-    validateKeys = developerInfoRequiredKeys.some((key) => developerInfoKeys.includes(key));
+  if (req.method === "PATCH" && !validateKeys) {
+    return res.status(400).json({
+      message: "At least one of those keys must be send.",
+      keys: ["developerSince", "preferredOS"],
+    });
   }
 
-  if (!validateKeys || checkWrongKeys) {
+  if (req.method === "POST") {
+    if (!developerInfoBody.developerSince) {
+      return res.status(400).json({
+        message: "Missing required keys: developerSince.",
+      });
+    }
+
+    if (!developerInfoBody.preferredOS) {
+      return res.status(400).json({
+        message: "Missing required keys: preferredOS.",
+      });
+    }
+  }
+
+  if (developerInfoBody.preferredOS && !developerRequiredOS.includes(developerInfoBody.preferredOS)) {
+   
     return res.status(400).json({
-      message: `Error: required keys are ${developerInfoRequiredKeys}`,
+      message: "Invalid OS option.",
+      options: ["Windows", "Linux", "MacOS"],
     });
   }
 

@@ -5,7 +5,10 @@ import { client } from "../database";
 import { DeveloperProjectsResult, DeveloperResult, DevInfoResult, IDeveloperRequest, IDevInfoRequest } from "../interfaces/developers.interfaces";
 
 const registerNewDeveloper = async (req: Request, res: Response): Promise<Response> => {
-  const developerReqBody: IDeveloperRequest = req.body;
+  const developerReqBody: IDeveloperRequest = {
+    name: req.body.name,
+    email: req.body.email,
+  };
 
   const queryString: string = format(
     `
@@ -18,19 +21,31 @@ const registerNewDeveloper = async (req: Request, res: Response): Promise<Respon
     Object.values(developerReqBody)
   );
 
-  const queryResult: DeveloperResult = await client.query(queryString);
+  try {
+    const queryResult: DeveloperResult = await client.query(queryString);
 
-  return res.status(201).json(queryResult.rows[0]);
+    return res.status(201).json(queryResult.rows[0]);
+  } catch (error: any) {
+    if (error.message.includes("duplicate key value violates unique constraint")) {
+      return res.status(409).json({
+        message: "Email already exists.",
+      });
+    }
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
 };
 
 const getAllDevelopers = async (req: Request, res: Response): Promise<Response> => {
   const queryString: string = `
   SELECT
-    de."id",
-    de."name",
-    de."email",
-    dinf."developerSince",
-    dinf."preferredOS"
+    de."id" AS "developerID",
+    de."name" AS "developerName",
+    de."email" AS "developerEmail",
+    dinf."id" AS "developerInfoID",
+    dinf."developerSince" AS "developerInfoDeveloperSince",
+    dinf."preferredOS" AS "developerInfoPreferredOS"
   FROM
     developers de
   LEFT JOIN
@@ -47,11 +62,12 @@ const getDeveloper = async (req: Request, res: Response): Promise<Response> => {
 
   const queryString: string = `
     SELECT
-      de."id",
-      de."name",
-      de."email",
-      dinf."developerSince",
-      dinf."preferredOS"
+      de."id" AS "developerID",
+      de."name" AS "developerName",
+      de."email" AS "developerEmail",
+      dinf."id" AS "developerInfoID",
+      dinf."developerSince" AS "developerInfoDeveloperSince",
+      dinf."preferredOS" AS "developerInfoPreferredOS"
     FROM
       developers de
     LEFT JOIN
@@ -70,11 +86,133 @@ const getDeveloper = async (req: Request, res: Response): Promise<Response> => {
   return res.status(200).json(queryResult.rows[0]);
 };
 
-const registerNewDevInfo = async (req: Request, res: Response): Promise<Response> => {
-  const devId: number = parseInt(req.params.id);
-  const newInfoReqBody: IDevInfoRequest = req.body;
+const editDeveloper = async (req: Request, res: Response): Promise<Response> => {
+  const developerId = parseInt(req.params.id);
+  let developerReqBody: IDeveloperRequest = req.body;
 
-  let queryString: string = format(
+  if (developerReqBody.email && developerReqBody.name) {
+    developerReqBody = {
+      name: developerReqBody.name,
+      email: developerReqBody.email,
+    };
+  } else if (developerReqBody.name) {
+    developerReqBody = {
+      name: developerReqBody.name,
+    };
+  } else {
+    developerReqBody = {
+      email: developerReqBody.email!,
+    };
+  }
+
+  const queryString: string = format(
+    `
+      UPDATE
+        developers
+      SET(%I) = ROW(%L)
+      WHERE
+        id = $1
+      RETURNING *;
+    `,
+    Object.keys(developerReqBody),
+    Object.values(developerReqBody)
+  );
+
+  const queryConfig: QueryConfig = {
+    text: queryString,
+    values: [developerId],
+  };
+
+  try {
+    const queryResult: DeveloperResult = await client.query(queryConfig);
+
+    return res.status(200).json(queryResult.rows[0]);
+  } catch (error: any) {
+    if (error.message.includes("duplicate key value violates unique constraint")) {
+      return res.status(409).json({
+        message: "Email already exists.",
+      });
+    }
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+const listAllDevProjects = async (req: Request, res: Response): Promise<Response> => {
+  const developerId: number = parseInt(req.params.id);
+
+  const queryString = `
+  SELECT
+    de."id" AS "developerID",
+    de."name" AS "developerName",
+    de."email" AS "developerEmail",
+    dinf."id" AS "developerInfoID",
+    dinf."developerSince" AS "developerInfoDeveloperSince",
+    dinf."preferredOS" AS "developerInfoPreferredOS",
+    pro.id AS "projectId",
+    pro.name AS "projectName",
+    pro.description AS "projectDescription",
+    pro."estimatedTime" as "projectEstimatedTime",
+    pro.repository AS "projectRepository",
+    pro."startDate" AS "projectStartDate",
+    pro."endDate" AS "projectEndDate",
+    tech.id AS "technologyId",
+    tech.name AS "technologyName"
+  FROM
+    developers de
+  LEFT JOIN
+    projects pro ON pro."id" = de."id"
+  LEFT JOIN
+    developer_infos dinf ON de."developerInfoId" = dinf.id
+  LEFT JOIN
+    projects_technologies ptg ON pro."id" = ptg."projectId"
+  LEFT JOIN
+    technologies tech ON ptg."technologyId" = tech."id"
+  WHERE
+    de.id = $1;
+  `;
+
+  const queryConfigProjects: QueryConfig = {
+    text: queryString,
+    values: [developerId],
+  };
+
+  const queryResult: DeveloperProjectsResult = await client.query(queryConfigProjects);
+
+  return res.status(200).json(queryResult.rows);
+};
+
+const registerNewDevInfo = async (req: Request, res: Response): Promise<Response> => {
+  const developerId: number = parseInt(req.params.id);
+  const newInfoReqBody: IDevInfoRequest = {
+    developerSince: req.body.developerSince,
+    preferredOS: req.body.preferredOS,
+  };
+
+  let queryString: string = `
+    SELECT
+      *
+    FROM
+      developers
+    WHERE
+      id = $1
+  `;
+
+  const queryConfigDevInfoCheck: QueryConfig = {
+    text: queryString,
+    values: [developerId],
+  };
+
+  const queryResultDevInfoCheck: DeveloperResult = await client.query(queryConfigDevInfoCheck);
+
+  if (queryResultDevInfoCheck.rows[0].developerInfoId !== null) {
+    return res.status(400).json({
+      message: "Developer infos already exists.",
+    });
+  }
+
+  queryString = format(
     `
     INSERT INTO
       developer_infos (%I)
@@ -98,7 +236,7 @@ const registerNewDevInfo = async (req: Request, res: Response): Promise<Response
 
   const queryConfig: QueryConfig = {
     text: queryString,
-    values: [queryResultInfo.rows[0].id, devId],
+    values: [queryResultInfo.rows[0].id, developerId],
   };
 
   await client.query(queryConfig);
@@ -106,96 +244,24 @@ const registerNewDevInfo = async (req: Request, res: Response): Promise<Response
   return res.status(201).json(queryResultInfo.rows[0]);
 };
 
-const editDeveloper = async (req: Request, res: Response): Promise<Response> => {
-  const devId = parseInt(req.params.id);
-  const developerReqBody: IDeveloperRequest = req.body;
-
-  if (req.body.id) {
-    return res.status(400).json({
-      message: `Erro: cannot update 'id' field`,
-    });
-  }
-
-  let queryString: string = format(
-    `
-      UPDATE
-        developers
-      SET(%I) = ROW(%L)
-      WHERE
-        id = $1
-      RETURNING *;
-    `,
-    Object.keys(developerReqBody),
-    Object.values(developerReqBody)
-  );
-
-  const queryConfig: QueryConfig = {
-    text: queryString,
-    values: [devId],
-  };
-
-  let queryResult: DeveloperResult = await client.query(queryConfig);
-
-  delete queryResult.rows[0].developerInfoId;
-
-  return res.status(200).json(queryResult.rows[0]);
-};
-
-const listAllDevProjects = async (req: Request, res: Response): Promise<Response> => {
-  const developerId: number = parseInt(req.params.id);
-
-  let queryString: string = `
-    SELECT
-      *
-    FROM
-      developers
-    WHERE
-      id = $1;
-  `;
-
-  const queryConfigDeveloper: QueryConfig = {
-    text: queryString,
-    values: [developerId],
-  };
-
-  const queryResultDeveloper: DeveloperResult = await client.query(queryConfigDeveloper);
-
-  queryString = `
-  SELECT
-    pro.name as "projectName",
-    pro.id as "projectId",
-    pro.description,
-    pro."estimatedTime",
-    pro.repository,
-    pro."startDate",
-    pro."endDate",
-    string_agg(DISTINCT tech.name, ',') as technologies
-  FROM
-    projects pro
-  LEFT JOIN
-    projects_technologies ptg ON pro."id" = ptg."projectId"
-  LEFT JOIN
-    technologies tech ON ptg."technologyId" = tech."id"
-  WHERE
-    "developerId" = $1
-  GROUP BY pro.id;
-  `;
-
-  const queryConfigProjects: QueryConfig = {
-    text: queryString,
-    values: [developerId],
-  };
-
-  const queryResultProjects: DeveloperProjectsResult = await client.query(queryConfigProjects);
-
-  const response = { developer: { ...queryResultDeveloper.rows[0] }, projects: queryResultProjects.rows };
-
-  return res.status(200).json(response);
-};
-
 const editDeveloperInfo = async (req: Request, res: Response): Promise<Response> => {
   const developerId: number = parseInt(req.params.id);
-  const developerInfoBody: IDevInfoRequest = req.body;
+  let developerInfoBody: IDevInfoRequest = req.body;
+
+  if (developerInfoBody.developerSince && developerInfoBody.preferredOS) {
+    developerInfoBody = {
+      preferredOS: developerInfoBody.preferredOS,
+      developerSince: developerInfoBody.developerSince,
+    };
+  } else if (developerInfoBody.preferredOS) {
+    developerInfoBody = {
+      preferredOS: developerInfoBody.preferredOS,
+    };
+  } else {
+    developerInfoBody = {
+      developerSince: developerInfoBody.developerSince!,
+    };
+  }
 
   let queryString: string = `
     SELECT
@@ -233,15 +299,8 @@ const editDeveloperInfo = async (req: Request, res: Response): Promise<Response>
 
   let queryResultInfo: QueryResult = await client.query(queryConfigInfo);
 
-  delete queryResultInfo.rows[0].id;
-  delete queryResultDeveloper.rows[0].developerInfoId;
 
-  let queryResult = {
-    ...queryResultDeveloper.rows[0],
-    ...queryResultInfo.rows[0],
-  };
-
-  return res.status(200).json(queryResult);
+  return res.status(200).json(queryResultInfo.rows[0]);
 };
 
 const deleteDeveloper = async (req: Request, res: Response): Promise<Response> => {

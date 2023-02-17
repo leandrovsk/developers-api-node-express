@@ -1,8 +1,8 @@
 import { QueryResult } from "pg";
 
 interface IDeveloperRequest {
-  name: string;
-  email: string;
+  name?: string;
+  email?: string;
 }
 
 type OS = "Windows" | "Linux" | "MacOS";

@@ -33,21 +33,29 @@ const ensureProjectExists = async (req: Request, res: Response, next: NextFuncti
 
 const validateProjectBodyMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
   const projectInfoKeys = Object.keys(req.body);
-  const projectInfoRequiredKeys = ["name", "description", "estimatedTime", "repository", "startDate", "developerId"];
-  const projectInfoRequiredKeysPlus = ["name", "description", "estimatedTime", "repository", "startDate", "developerId", "endDate"];
+  const projectInfoRequiredKeys = ["name", "description", "estimatedTime", "repository", "startDate", "endDate", "developerId"];
 
-  let validateKeys = projectInfoRequiredKeys.every((key) => projectInfoKeys.includes(key));
+  let missingKeys: Array<string> = [];
 
-  let checkWrongKeys = projectInfoKeys.some((key) => !projectInfoRequiredKeysPlus.includes(key));
+  const validateKeys = projectInfoRequiredKeys.some((key) => projectInfoKeys.includes(key));
 
-  if (req.method === "PATCH") {
-    validateKeys = projectInfoRequiredKeys.some((key) => projectInfoKeys.includes(key));
+  if (req.method === "PATCH" && !validateKeys) {
+    return res.status(400).json({
+      message: "At least one of those keys must be send.",
+      keys: projectInfoRequiredKeys,
+    });
   }
 
-  if (!validateKeys || checkWrongKeys) {
-    return res.status(400).json({
-      message: `Error: required keys are ${projectInfoRequiredKeys}`,
+  if (req.method === "POST") {
+    projectInfoRequiredKeys.forEach((key) => {
+      !projectInfoKeys.includes(key) && key !== "endDate" && missingKeys.push(key);
     });
+
+    if (missingKeys.length !== 0) {
+      return res.status(400).json({
+        message: `Missing required keys: ${missingKeys}`,
+      });
+    }
   }
 
   return next();

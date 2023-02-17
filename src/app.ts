@@ -14,8 +14,8 @@ app.get("/developers/:id/projects", ensureDeveloperExists, listAllDevProjects);
 app.get("/developers", getAllDevelopers);
 app.patch("/developers/:id", ensureDeveloperExists, validateDeveloperBodyMiddleware, editDeveloper);
 app.delete("/developers/:id", ensureDeveloperExists, deleteDeveloper);
-app.post("/developers/:id/infos", validateInfoBodyMiddleware, ensureDeveloperExists, registerNewDevInfo);
-app.patch("/developers/:id/infos", validateInfoBodyMiddleware, ensureDeveloperExists, editDeveloperInfo);
+app.post("/developers/:id/infos",ensureDeveloperExists, validateInfoBodyMiddleware, registerNewDevInfo);
+app.patch("/developers/:id/infos", ensureDeveloperExists, validateInfoBodyMiddleware, editDeveloperInfo);
 
 app.post("/projects", validateProjectBodyMiddleware, registerNewProject);
 app.get("/projects/:id", ensureProjectExists, getProject);

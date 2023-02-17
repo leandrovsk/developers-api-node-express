@@ -2,12 +2,42 @@ import { Request, Response } from "express";
 import { QueryConfig, QueryResult } from "pg";
 import format from "pg-format";
 import { client } from "../database";
+import { DeveloperResult } from "../interfaces/developers.interfaces";
 import { IProjectRequest, ITechRequest, ProjectResult, TechResult } from "../interfaces/projects.interfaces";
 
 const registerNewProject = async (req: Request, res: Response): Promise<Response> => {
-  const newProjectReqBody: IProjectRequest = req.body;
+  const newProjectReqBody: IProjectRequest = {
+    name: req.body.name,
+    description: req.body.description,
+    estimatedTime: req.body.estimatedTime,
+    repository: req.body.repository,
+    startDate: req.body.startDate,
+    endDate: req.body.endDate,
+    developerId: req.body.developerId,
+  };
 
-  const queryString: string = format(
+  let queryString: string = `
+    SELECT
+      *
+    FROM
+      developers
+    WHERE
+      id = $1;
+  `;
+  const queryConfigCheckDev: QueryConfig = {
+    text: queryString,
+    values: [newProjectReqBody.developerId],
+  };
+
+  const queryResultCheckDev: DeveloperResult = await client.query(queryConfigCheckDev);
+
+  if (queryResultCheckDev.rowCount === 0) {
+    return res.status(404).json({
+      message: "Developer not found.",
+    });
+  }
+
+  queryString = format(
     `
       INSERT INTO
         projects (%I)
