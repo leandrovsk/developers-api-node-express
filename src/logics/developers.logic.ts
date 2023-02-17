@@ -5,10 +5,8 @@ import { client } from "../database";
 import { DeveloperProjectsResult, DeveloperResult, DevInfoResult, IDeveloperRequest, IDevInfoRequest } from "../interfaces/developers.interfaces";
 
 const registerNewDeveloper = async (req: Request, res: Response): Promise<Response> => {
-  const developerReqBody: IDeveloperRequest = {
-    name: req.body.name,
-    email: req.body.email,
-  };
+  const developerReqBody: IDeveloperRequest = req.body;
+
 
   const queryString: string = format(
     `
@@ -37,73 +35,9 @@ const registerNewDeveloper = async (req: Request, res: Response): Promise<Respon
   }
 };
 
-const getAllDevelopers = async (req: Request, res: Response): Promise<Response> => {
-  const queryString: string = `
-  SELECT
-    de."id" AS "developerID",
-    de."name" AS "developerName",
-    de."email" AS "developerEmail",
-    dinf."id" AS "developerInfoID",
-    dinf."developerSince" AS "developerInfoDeveloperSince",
-    dinf."preferredOS" AS "developerInfoPreferredOS"
-  FROM
-    developers de
-  LEFT JOIN
-    developer_infos dinf ON de."developerInfoId" = dinf.id;
-  `;
-
-  const queryResult: DeveloperResult = await client.query(queryString);
-
-  return res.status(200).json(queryResult.rows);
-};
-
-const getDeveloper = async (req: Request, res: Response): Promise<Response> => {
-  const developerId: number = parseInt(req.params.id);
-
-  const queryString: string = `
-    SELECT
-      de."id" AS "developerID",
-      de."name" AS "developerName",
-      de."email" AS "developerEmail",
-      dinf."id" AS "developerInfoID",
-      dinf."developerSince" AS "developerInfoDeveloperSince",
-      dinf."preferredOS" AS "developerInfoPreferredOS"
-    FROM
-      developers de
-    LEFT JOIN
-      developer_infos dinf ON de."developerInfoId" = dinf.id
-    WHERE
-      de.id = $1
-  `;
-
-  const queryConfig: QueryConfig = {
-    text: queryString,
-    values: [developerId],
-  };
-
-  const queryResult: DeveloperResult = await client.query(queryConfig);
-
-  return res.status(200).json(queryResult.rows[0]);
-};
-
 const editDeveloper = async (req: Request, res: Response): Promise<Response> => {
   const developerId = parseInt(req.params.id);
   let developerReqBody: IDeveloperRequest = req.body;
-
-  if (developerReqBody.email && developerReqBody.name) {
-    developerReqBody = {
-      name: developerReqBody.name,
-      email: developerReqBody.email,
-    };
-  } else if (developerReqBody.name) {
-    developerReqBody = {
-      name: developerReqBody.name,
-    };
-  } else {
-    developerReqBody = {
-      email: developerReqBody.email!,
-    };
-  }
 
   const queryString: string = format(
     `
@@ -137,6 +71,55 @@ const editDeveloper = async (req: Request, res: Response): Promise<Response> => 
       message: "Internal server error",
     });
   }
+};
+
+const getDeveloper = async (req: Request, res: Response): Promise<Response> => {
+  const developerId: number = parseInt(req.params.id);
+
+  const queryString: string = `
+    SELECT
+      de."id" AS "developerID",
+      de."name" AS "developerName",
+      de."email" AS "developerEmail",
+      dinf."id" AS "developerInfoID",
+      dinf."developerSince" AS "developerInfoDeveloperSince",
+      dinf."preferredOS" AS "developerInfoPreferredOS"
+    FROM
+      developers de
+    LEFT JOIN
+      developer_infos dinf ON de."developerInfoId" = dinf.id
+    WHERE
+      de.id = $1
+  `;
+
+  const queryConfig: QueryConfig = {
+    text: queryString,
+    values: [developerId],
+  };
+
+  const queryResult: DeveloperResult = await client.query(queryConfig);
+
+  return res.status(200).json(queryResult.rows[0]);
+};
+
+const getAllDevelopers = async (req: Request, res: Response): Promise<Response> => {
+  const queryString: string = `
+  SELECT
+    de."id" AS "developerID",
+    de."name" AS "developerName",
+    de."email" AS "developerEmail",
+    dinf."id" AS "developerInfoID",
+    dinf."developerSince" AS "developerInfoDeveloperSince",
+    dinf."preferredOS" AS "developerInfoPreferredOS"
+  FROM
+    developers de
+  LEFT JOIN
+    developer_infos dinf ON de."developerInfoId" = dinf.id;
+  `;
+
+  const queryResult: DeveloperResult = await client.query(queryString);
+
+  return res.status(200).json(queryResult.rows);
 };
 
 const listAllDevProjects = async (req: Request, res: Response): Promise<Response> => {
@@ -181,6 +164,26 @@ const listAllDevProjects = async (req: Request, res: Response): Promise<Response
   const queryResult: DeveloperProjectsResult = await client.query(queryConfigProjects);
 
   return res.status(200).json(queryResult.rows);
+};
+
+const deleteDeveloper = async (req: Request, res: Response): Promise<Response> => {
+  const developerId: number = parseInt(req.params.id);
+
+  const queryString: string = `
+    DELETE FROM
+      developers
+    WHERE
+      id = $1;
+  `;
+
+  const queryConfig: QueryConfig = {
+    text: queryString,
+    values: [developerId],
+  };
+
+  await client.query(queryConfig);
+
+  return res.status(200).json();
 };
 
 const registerNewDevInfo = async (req: Request, res: Response): Promise<Response> => {
@@ -299,28 +302,7 @@ const editDeveloperInfo = async (req: Request, res: Response): Promise<Response>
 
   let queryResultInfo: QueryResult = await client.query(queryConfigInfo);
 
-
   return res.status(200).json(queryResultInfo.rows[0]);
-};
-
-const deleteDeveloper = async (req: Request, res: Response): Promise<Response> => {
-  const developerId: number = parseInt(req.params.id);
-
-  const queryString: string = `
-    DELETE FROM
-      developers
-    WHERE
-      id = $1;
-  `;
-
-  const queryConfig: QueryConfig = {
-    text: queryString,
-    values: [developerId],
-  };
-
-  await client.query(queryConfig);
-
-  return res.status(200).json();
 };
 
 export { registerNewDeveloper, getAllDevelopers, getDeveloper, registerNewDevInfo, editDeveloper, editDeveloperInfo, listAllDevProjects, deleteDeveloper };

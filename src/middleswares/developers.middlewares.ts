@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { QueryConfig } from "pg";
 import { client } from "../database";
-import { DeveloperResult, IDeveloperRequest } from "../interfaces/developers.interfaces";
+import { DeveloperRequiredKeys, DeveloperResult } from "../interfaces/developers.interfaces";
 
 const ensureDeveloperExists = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
   const developerId: number = parseInt(req.params.id);
@@ -32,9 +32,13 @@ const ensureDeveloperExists = async (req: Request, res: Response, next: NextFunc
 };
 
 const validateDeveloperBodyMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
-  const developerReqBody: IDeveloperRequest = req.body;
-  const developerReqBodyKeys = Object.keys(req.body);
-  const developerRequiredKeys = ["name", "email"];
+  const developerReqBody = req.body;
+  const developerReqBodyKeys: Array<string> = Object.keys(req.body);
+  const developerRequiredKeys: Array<DeveloperRequiredKeys | string> = ["name", "email"];
+
+  developerReqBodyKeys.forEach((key) => {
+    !developerRequiredKeys.includes(key) && delete developerReqBody[key];
+  });
 
   const validateKeys = developerRequiredKeys.some((key) => developerReqBodyKeys.includes(key));
 
@@ -68,6 +72,10 @@ const validateInfoBodyMiddleware = async (req: Request, res: Response, next: Nex
   const developerInfoRequiredKeys = ["developerSince", "preferredOS"];
   const developerRequiredOS = ["Windows", "Linux", "MacOS"];
 
+  if (developerInfoBody.developerSince) {
+    developerInfoBody.developerSince = new Date(Date.parse(developerInfoBody.developerSince));
+  }
+
   const validateKeys = developerInfoRequiredKeys.some((key) => developerInfoKeys.includes(key));
 
   if (req.method === "PATCH" && !validateKeys) {
@@ -92,7 +100,6 @@ const validateInfoBodyMiddleware = async (req: Request, res: Response, next: Nex
   }
 
   if (developerInfoBody.preferredOS && !developerRequiredOS.includes(developerInfoBody.preferredOS)) {
-   
     return res.status(400).json({
       message: "Invalid OS option.",
       options: ["Windows", "Linux", "MacOS"],

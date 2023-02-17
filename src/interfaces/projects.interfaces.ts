@@ -14,6 +14,10 @@ interface IProject extends IProjectRequest {
   id: number;
 }
 
+type projectRequiredKeys = "name" | "description" | "estimatedTime" | "repository" | "startDate" | "endDate" | "developerId";
+
+type ProjectRequiredTech = "JavaScript" | "Python" | "React" | "Express.js" | "HTML" | "CSS" | "Django" | "PostgreSQL" | "MongoDB";
+
 type ProjectResult = QueryResult<IProject>;
 
 interface ITechRequest {
@@ -29,4 +33,4 @@ interface ITech extends ITechRequest {
 
 type TechResult = QueryResult<ITech>;
 
-export { IProjectRequest, ProjectResult, ITechRequest, TechResult };
+export { IProjectRequest, ProjectResult, ITechRequest, TechResult, projectRequiredKeys, ProjectRequiredTech };

@@ -6,15 +6,7 @@ import { DeveloperResult } from "../interfaces/developers.interfaces";
 import { IProjectRequest, ITechRequest, ProjectResult, TechResult } from "../interfaces/projects.interfaces";
 
 const registerNewProject = async (req: Request, res: Response): Promise<Response> => {
-  const newProjectReqBody: IProjectRequest = {
-    name: req.body.name,
-    description: req.body.description,
-    estimatedTime: req.body.estimatedTime,
-    repository: req.body.repository,
-    startDate: req.body.startDate,
-    endDate: req.body.endDate,
-    developerId: req.body.developerId,
-  };
+  const newProjectReqBody: IProjectRequest = req.body;
 
   let queryString: string = `
     SELECT
@@ -24,6 +16,7 @@ const registerNewProject = async (req: Request, res: Response): Promise<Response
     WHERE
       id = $1;
   `;
+
   const queryConfigCheckDev: QueryConfig = {
     text: queryString,
     values: [newProjectReqBody.developerId],
@@ -53,106 +46,9 @@ const registerNewProject = async (req: Request, res: Response): Promise<Response
   return res.status(201).json(queryResult.rows[0]);
 };
 
-const getAllProjects = async (req: Request, res: Response): Promise<Response> => {
-  const queryString: string = `
-  SELECT
-    pro.*,
-    string_agg(DISTINCT tech.name, ',') as technologies
-  FROM
-    projects pro
-  LEFT JOIN
-    projects_technologies ptg ON pro."id" = ptg."projectId"
-  LEFT JOIN
-    technologies tech ON ptg."technologyId" = tech."id"
-  GROUP BY pro.id;
-  `;
-
-  const queryResult: ProjectResult = await client.query(queryString);
-
-  return res.status(200).json(queryResult.rows);
-};
-
-const getProject = async (req: Request, res: Response): Promise<Response> => {
-  const projectId: number = parseInt(req.params.id);
-
-  const queryString: string = `
-    SELECT
-      pro.*,
-      string_agg(DISTINCT tech.name, ',') as technologies
-    FROM
-      projects pro
-    LEFT JOIN
-      projects_technologies ptg ON pro."id" = ptg."projectId"
-    LEFT JOIN
-      technologies tech ON ptg."technologyId" = tech."id"
-    WHERE
-      pro.id = $1
-    GROUP BY pro.id;
-  `;
-
-  const queryConfig: QueryConfig = {
-    text: queryString,
-    values: [projectId],
-  };
-
-  const queryResult: ProjectResult = await client.query(queryConfig);
-
-  return res.status(200).json(queryResult.rows[0]);
-};
-
-const registerNewTech = async (req: Request, res: Response): Promise<Response> => {
-  const projectId: number = parseInt(req.params.id);
-  const newTech: ITechRequest = req.body;
-
-  if (!newTech.name) {
-    return res.status(400).json({
-      message: `Erro: 'name' is required`,
-    });
-  }
-
-  let queryString: string = `
-    SELECT 
-      *
-    FROM
-      technologies
-    WHERE
-      name = $1;
-  `;
-  const queryConfigCheck: QueryConfig = {
-    text: queryString,
-    values: [newTech.name],
-  };
-
-  const queryResultCheck: QueryResult = await client.query(queryConfigCheck);
-
-  if (queryResultCheck.rowCount === 0) {
-    return res.status(400).json({
-      message: "Erro: technology not found",
-    });
-  }
-
-  queryString = `
-    INSERT INTO
-      projects_technologies ("addedIn", "projectId", "technologyId")
-    VALUES ($1, $2, $3)
-    RETURNING *;
-  `;
-
-  const newDate = new Date();
-
-  const queryConfig: QueryConfig = {
-    text: queryString,
-    values: [newDate, projectId, queryResultCheck.rows[0].id],
-  };
-
-  const queryResult: TechResult = await client.query(queryConfig);
-
-  return res.status(201).json(queryResult.rows[0]);
-};
-
 const editProject = async (req: Request, res: Response): Promise<Response> => {
   const projectId: number = parseInt(req.params.id);
-  const projectInfoBody: IProjectRequest = req.body;
+  const projectInfoBody = req.body;
 
   const queryString = format(
     `
@@ -172,9 +68,83 @@ const editProject = async (req: Request, res: Response): Promise<Response> => {
     values: [projectId],
   };
 
+  try {
+    const queryResult: ProjectResult = await client.query(queryConfig);
+    return res.status(200).json(queryResult.rows[0]);
+  } catch (error: any) {
+    if (error.message.includes(`insert or update on table "projects" violates foreign key constraint`)) {
+      return res.status(404).json({
+        message: "Developer not found.",
+      });
+    } else {
+      return res.status(500).json({
+        message: "Internal server error",
+      });
+    }
+  }
+};
+
+const getProject = async (req: Request, res: Response): Promise<Response> => {
+  const projectId: number = parseInt(req.params.id);
+
+  const queryString: string = `
+    SELECT
+      pro.id AS "projectId",
+      pro.name AS "projectName",
+      pro.description AS "projectDescription",
+      pro."estimatedTime" as "projectEstimatedTime",
+      pro.repository AS "projectRepository",
+      pro."startDate" AS "projectStartDate",
+      pro."endDate" AS "projectEndDate",
+      pro."developerId" AS "projectDeveloperID",
+      tech.id AS "technologyId",
+      tech.name AS "technologyName"
+    FROM
+      projects pro
+    LEFT JOIN
+      projects_technologies ptg ON pro."id" = ptg."projectId"
+    LEFT JOIN
+      technologies tech ON ptg."technologyId" = tech."id"
+    WHERE
+      pro.id = $1
+  `;
+
+  const queryConfig: QueryConfig = {
+    text: queryString,
+    values: [projectId],
+  };
+
   const queryResult: ProjectResult = await client.query(queryConfig);
 
-  return res.status(200).json(queryResult.rows[0]);
+  return res.status(200).json(queryResult.rows);
+};
+
+const getAllProjects = async (req: Request, res: Response): Promise<Response> => {
+  const queryString: string = `
+    SELECT
+      pro.id AS "projectId",
+      pro.name AS "projectName",
+      pro.description AS "projectDescription",
+      pro."estimatedTime" as "projectEstimatedTime",
+      pro.repository AS "projectRepository",
+      pro."startDate" AS "projectStartDate",
+      pro."endDate" AS "projectEndDate",
+      pro."developerId" AS "projectDeveloperID",
+      tech.id AS "technologyId",
+      tech.name AS "technologyName"
+    FROM
+      projects pro
+    LEFT JOIN
+      projects_technologies ptg ON pro."id" = ptg."projectId"
+    LEFT JOIN
+      technologies tech ON ptg."technologyId" = tech."id"
+    ORDER BY
+      pro.id
+  `;
+
+  const queryResult: ProjectResult = await client.query(queryString);
+
+  return res.status(200).json(queryResult.rows);
 };
 
 const deleteProject = async (req: Request, res: Response): Promise<Response> => {
@@ -197,9 +167,67 @@ const deleteProject = async (req: Request, res: Response): Promise<Response> => 
   return res.status(200).json();
 };
 
+const registerNewTech = async (req: Request, res: Response): Promise<Response> => {
+  const projectId: number = parseInt(req.params.id);
+  const newTech: ITechRequest = req.body;
+
+  let queryString: string = `
+    SELECT 
+      tech.id AS "technologyId",
+      tech.name AS "technologyName",
+      pro.id AS "projectId",
+      pro.name AS "projectName",
+      pro.description AS "projectDescription",
+      pro."estimatedTime" as "projectEstimatedTime",
+      pro.repository AS "projectRepository",
+      pro."startDate" AS "projectStartDate",
+      pro."endDate" AS "projectEndDate"
+    FROM
+      technologies tech
+    LEFT JOIN
+      projects pro ON pro.id = $1
+    WHERE
+      tech.name = $2;
+  `;
+
+  const queryConfig: QueryConfig = {
+    text: queryString,
+    values: [projectId, newTech.name],
+  };
+
+  const queryResult: QueryResult = await client.query(queryConfig);
+
+  queryString = `
+    INSERT INTO
+      projects_technologies ("addedIn", "projectId", "technologyId")
+    VALUES ($1, $2, $3)
+    RETURNING *; 
+  `;
+
+  const newDate = new Date();
+
+  const queryConfigPTech: QueryConfig = {
+    text: queryString,
+    values: [newDate, projectId, queryResult.rows[0].technologyId],
+  };
+
+  await client.query(queryConfigPTech);
+
+  return res.status(201).json(queryResult.rows[0]);
+};
+
 const deleteTechnologyFromProject = async (req: Request, res: Response): Promise<Response> => {
   const projectId: number = parseInt(req.params.id);
-  const techName: string = req.params.name.toUpperCase();
+  const techName: string = req.params.name;
+
+  const requiredTechnologies = ["JavaScript", "Python", "React", "Express.js", "HTML", "CSS", "Django", "PostgreSQL", "MongoDB"];
+
+  if (!requiredTechnologies.includes(techName)) {
+    return res.status(404).json({
+      message: "Technology not supported",
+      options: requiredTechnologies,
+    });
+  }
 
   let queryString: string = `
     SELECT
@@ -229,7 +257,13 @@ const deleteTechnologyFromProject = async (req: Request, res: Response): Promise
     values: [projectId, queryConfigTechNameResult.rows[0].id],
   };
 
-  await client.query(queryConfig);
+  const queryResult = await client.query(queryConfig);
+
+  if (queryResult.rowCount === 0) {
+    return res.status(404).json({
+      message: `Technology '${techName}' not found on this Project.`,
+    });
+  }
 
   return res.status(200).json();
 };

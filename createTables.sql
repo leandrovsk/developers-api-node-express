@@ -48,7 +48,9 @@ CREATE TABLE IF NOT EXISTS projects_technologies (
   "id" SERIAL PRIMARY KEY,
   "addedIn" DATE NOT NULL,
   "projectId" INTEGER NOT NULL,
-  FOREIGN KEY ("projectId") REFERENCES projects("id"),
+  FOREIGN KEY ("projectId") REFERENCES projects("id")
+  ON DELETE CASCADE,
   "technologyId" INTEGER NOT NULL,
   FOREIGN KEY ("technologyId") REFERENCES technologies("id")
+  ON DELETE CASCADE
 );

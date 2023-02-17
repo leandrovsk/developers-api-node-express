@@ -7,6 +7,8 @@ interface IDeveloperRequest {
 
 type OS = "Windows" | "Linux" | "MacOS";
 
+type DeveloperRequiredKeys = "name" | "email";
+
 interface IDeveloper extends IDeveloperRequest {
   id: number;
   developerInfoId?: number | null;
@@ -40,4 +42,4 @@ interface IDeveloperProject {
 
 type DeveloperProjectsResult = QueryResult<IDeveloperProject>;
 
-export { IDeveloperRequest, DeveloperResult, IDevInfoRequest, DevInfoResult, DeveloperProjectsResult };
+export { IDeveloperRequest, DeveloperResult, IDevInfoRequest, DevInfoResult, DeveloperProjectsResult, DeveloperRequiredKeys };

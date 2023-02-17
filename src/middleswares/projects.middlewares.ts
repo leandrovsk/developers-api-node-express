@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { QueryConfig } from "pg";
 import { client } from "../database";
-import { ProjectResult } from "../interfaces/projects.interfaces";
+import { projectRequiredKeys, ProjectResult } from "../interfaces/projects.interfaces";
 
 const ensureProjectExists = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
   const projectId: number = parseInt(req.params.id);
@@ -24,7 +24,7 @@ const ensureProjectExists = async (req: Request, res: Response, next: NextFuncti
 
   if (queryResult.rowCount === 0) {
     return res.status(404).json({
-      message: `Error: project 'id' not found`,
+      message: "Project not found.",
     });
   }
 
@@ -32,22 +32,35 @@ const ensureProjectExists = async (req: Request, res: Response, next: NextFuncti
 };
 
 const validateProjectBodyMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
-  const projectInfoKeys = Object.keys(req.body);
-  const projectInfoRequiredKeys = ["name", "description", "estimatedTime", "repository", "startDate", "endDate", "developerId"];
+  const projectInfoBody = req.body;
+  const projectInfoKeys: Array<string> = Object.keys(req.body);
+  const projectRequiredKeys: Array<projectRequiredKeys | string> = ["name", "description", "estimatedTime", "repository", "startDate", "endDate", "developerId"];
+
+  if (projectInfoBody.startDate) {
+    projectInfoBody.startDate = new Date(Date.parse(projectInfoBody.startDate));
+  }
+
+  if (projectInfoBody.endDate) {
+    projectInfoBody.endDate = new Date(Date.parse(projectInfoBody.endDate));
+  }
+
+  projectInfoKeys.forEach((key) => {
+    !projectRequiredKeys.includes(key) && delete projectInfoBody[key];
+  });
 
   let missingKeys: Array<string> = [];
 
-  const validateKeys = projectInfoRequiredKeys.some((key) => projectInfoKeys.includes(key));
+  const validateKeys = projectRequiredKeys.some((key) => projectInfoKeys.includes(key));
 
   if (req.method === "PATCH" && !validateKeys) {
     return res.status(400).json({
       message: "At least one of those keys must be send.",
-      keys: projectInfoRequiredKeys,
+      keys: projectRequiredKeys,
     });
   }
 
   if (req.method === "POST") {
-    projectInfoRequiredKeys.forEach((key) => {
+    projectRequiredKeys.forEach((key) => {
       !projectInfoKeys.includes(key) && key !== "endDate" && missingKeys.push(key);
     });
 
@@ -62,16 +75,53 @@ const validateProjectBodyMiddleware = async (req: Request, res: Response, next: 
 };
 
 const validateTechBodyMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  const projectId: number = parseInt(req.params.id);
+  const techReqBody = req.body;
   const techInfoKeys = Object.keys(req.body);
   const techInfoRequiredKey = ["name"];
+  const requiredTechnologies = ["JavaScript", "Python", "React", "Express.js", "HTML", "CSS", "Django", "PostgreSQL", "MongoDB"];
 
-  let validateKeys = techInfoRequiredKey.every((key) => techInfoKeys.includes(key));
+  techInfoKeys.forEach((key) => {
+    !techInfoRequiredKey.includes(key) && delete techReqBody[key];
+  });
 
-  let checkWrongKeys = techInfoKeys.some((key) => !techInfoRequiredKey.includes(key));
-
-  if (!validateKeys || checkWrongKeys) {
+  if (!techReqBody.name) {
     return res.status(400).json({
-      message: `Error: required keys is ${techInfoRequiredKey}`,
+      message: "A key 'name' must be send.",
+    });
+  }
+
+  const validateTechName = requiredTechnologies.some((tech) => techReqBody.name === tech);
+
+  if (!validateTechName) {
+    return res.status(400).json({
+      message: "Technology not supported.",
+      options: requiredTechnologies,
+    });
+  }
+
+  const queryString: string = `
+    SELECT
+      ptch.*,
+      tech.name
+    FROM
+      projects_technologies ptch
+    LEFT JOIN
+      technologies tech ON ptch."technologyId" = tech.id
+    WHERE
+      "projectId" = $1 AND tech.name = $2;
+  `;
+
+  const queryConfig: QueryConfig = {
+    text: queryString,
+    values: [projectId, techReqBody.name],
+  };
+
+  const queryResult = await client.query(queryConfig);
+
+  if (queryResult.rowCount !== 0) {
+    return res.status(409).json({
+      message: "Technology already registered",
     });
   }
 
